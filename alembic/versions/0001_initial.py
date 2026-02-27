@@ -25,11 +25,12 @@ account_type = sa.Enum(
     "OTHER_INCOME",
     "OTHER_EXPENSE",
     name="account_type",
+    create_type=False,
 )
 
-pdf_parse_status = sa.Enum("PENDING", "PARSED", "FAILED", name="pdf_parse_status")
+pdf_parse_status = sa.Enum("PENDING", "PARSED", "FAILED", name="pdf_parse_status", create_type=False)
 
-bank_txn_direction = sa.Enum("DEBIT", "CREDIT", name="bank_txn_direction")
+bank_txn_direction = sa.Enum("DEBIT", "CREDIT", name="bank_txn_direction", create_type=False)
 
 bank_txn_status = sa.Enum(
     "NEW",
@@ -38,9 +39,10 @@ bank_txn_status = sa.Enum(
     "POSTED",
     "IGNORED",
     name="bank_txn_status",
+    create_type=False,
 )
 
-rule_match_type = sa.Enum("CONTAINS", "STARTS_WITH", "REGEX", "EXACT", name="rule_match_type")
+rule_match_type = sa.Enum("CONTAINS", "STARTS_WITH", "REGEX", "EXACT", name="rule_match_type", create_type=False)
 
 register_source = sa.Enum(
     "MANUAL",
@@ -48,13 +50,14 @@ register_source = sa.Enum(
     "PAYROLL_IMPORT",
     "ADJUSTMENT",
     name="register_source",
+    create_type=False,
 )
 
-match_type = sa.Enum("AUTO", "MANUAL", name="match_type")
+match_type = sa.Enum("AUTO", "MANUAL", name="match_type", create_type=False)
 
-reconciliation_status = sa.Enum("OPEN", "CLOSED", name="reconciliation_status")
+reconciliation_status = sa.Enum("OPEN", "CLOSED", name="reconciliation_status", create_type=False)
 
-audit_action = sa.Enum("CREATE", "UPDATE", "DELETE", name="audit_action")
+audit_action = sa.Enum("CREATE", "UPDATE", "DELETE", name="audit_action", create_type=False)
 
 
 def upgrade() -> None:
