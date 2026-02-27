@@ -2,6 +2,7 @@ services:
   - type: web
     name: bookkeeping-api
     env: python
+    pythonVersion: 3.11.9
     plan: free
     buildCommand: "pip install -U pip setuptools wheel && pip install -r requirements.txt"
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
