@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: bookkeeping-api
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+
+# Create a Postgres instance in Render and set DATABASE_URL
+# Then run migrations locally or via Render shell:
+# alembic upgrade head

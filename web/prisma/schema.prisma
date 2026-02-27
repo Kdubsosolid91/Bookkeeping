@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+  COGS
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
+
+enum PdfParseStatus {
+  PENDING
+  PARSED
+  FAILED
+}
+
+enum BankTxnDirection {
+  DEBIT
+  CREDIT
+}
+
+enum BankTxnStatus {
+  NEW
+  SUGGESTED
+  MATCHED
+  POSTED
+  IGNORED
+}
+
+enum RuleMatchType {
+  CONTAINS
+  STARTS_WITH
+  REGEX
+  EXACT
+}
+
+enum RegisterSource {
+  MANUAL
+  BANK_FEED
+  PAYROLL_IMPORT
+  ADJUSTMENT
+}
+
+enum MatchType {
+  AUTO
+  MANUAL
+}
+
+enum ReconciliationStatus {
+  OPEN
+  CLOSED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model Workspace {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users      User[]
+  businesses Business[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @db.Uuid @map("workspace_id")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@map("users")
+}
+
+model Business {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String   @db.Uuid @map("workspace_id")
+  name          String
+  baseCurrency  String   @default("USD") @map("base_currency")
+  closeLockDate DateTime? @map("close_lock_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id])
+  coaAccounts      CoaAccount[]
+  bankAccounts     BankAccount[]
+  pdfUploads       PdfUpload[]
+  bankTransactions BankTransaction[]
+  vendors          Vendor[]
+  rules            Rule[]
+  registerTxns     RegisterTransaction[]
+  registerLines    RegisterLine[]
+  bankMatches      BankMatch[]
+  reconciliations  ReconciliationSession[]
+  reconciliationItems ReconciliationItem[]
+  auditLogs        AuditLog[]
+
+  @@map("businesses")
+}
+
+model CoaAccount {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @db.Uuid @map("business_id")
+  name       String
+  type       AccountType
+  code       String?
+  parentId   String?  @db.Uuid @map("parent_id")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("coa_accounts")
+}
+
+model BankAccount {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String  @db.Uuid @map("business_id")
+  name          String
+  institution   String?
+  accountLast4  String? @map("account_last4")
+  openingBalance Decimal @default(0) @map("opening_balance") @db.Decimal(14, 2)
+  isActive      Boolean @default(true) @map("is_active")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("bank_accounts")
+}
+
+model PdfUpload {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId      String   @db.Uuid @map("business_id")
+  bankAccountId   String   @db.Uuid @map("bank_account_id")
+  filename        String
+  storagePath     String   @map("storage_path")
+  statementStart  DateTime? @db.Date @map("statement_start")
+  statementEnd    DateTime? @db.Date @map("statement_end")
+  beginningBalance Decimal? @db.Decimal(14, 2) @map("beginning_balance")
+  endingBalance    Decimal? @db.Decimal(14, 2) @map("ending_balance")
+  parseStatus     PdfParseStatus @map("parse_status")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("pdf_uploads")
+}
+
+model BankTransaction {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId         String   @db.Uuid @map("business_id")
+  bankAccountId      String   @db.Uuid @map("bank_account_id")
+  pdfUploadId        String?  @db.Uuid @map("pdf_upload_id")
+  txnDate            DateTime @db.Date @map("txn_date")
+  descriptionRaw     String   @map("description_raw")
+  descriptionClean   String   @map("description_clean")
+  amount             Decimal  @db.Decimal(14, 2)
+  direction          BankTxnDirection
+  runningBalance     Decimal? @db.Decimal(14, 2) @map("running_balance")
+  importedHash       String   @map("imported_hash")
+  status             BankTxnStatus
+  suggestedVendor    String?  @map("suggested_vendor")
+  suggestedAccountId String?  @db.Uuid @map("suggested_account_id")
+  suggestedConfidence Decimal? @db.Decimal(3, 2) @map("suggested_confidence")
+  sourcePage         Int?     @map("source_page")
+  sourceRow          Int?     @map("source_row")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, bankAccountId, importedHash], map: "uq_bank_txn_import")
+  @@map("bank_transactions")
+}
+
+model Vendor {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @db.Uuid @map("business_id")
+  name       String
+  aliases    String[]
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("vendors")
+}
+
+model Rule {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId  String   @db.Uuid @map("business_id")
+  priority    Int      @default(100)
+  matchType   RuleMatchType @map("match_type")
+  pattern     String
+  vendorId    String?  @db.Uuid @map("vendor_id")
+  accountId   String?  @db.Uuid @map("account_id")
+  class       String?  @map("class")
+  location    String?
+  memoContains String? @map("memo_contains")
+  autoSuggest Boolean  @default(true) @map("auto_suggest")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("rules")
+}
+
+model RegisterTransaction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String   @db.Uuid @map("business_id")
+  txnDate      DateTime @db.Date @map("txn_date")
+  payee        String?
+  memo         String?
+  source       RegisterSource
+  bankAccountId String? @db.Uuid @map("bank_account_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+  lines    RegisterLine[]
+
+  @@map("register_transactions")
+}
+
+model RegisterLine {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registerTransactionId String   @db.Uuid @map("register_transaction_id")
+  businessId            String   @db.Uuid @map("business_id")
+  accountId             String   @db.Uuid @map("account_id")
+  amount                Decimal  @db.Decimal(14, 2)
+  class                 String?  @map("class")
+  location              String?
+  lineMemo              String?  @map("line_memo")
+
+  transaction RegisterTransaction @relation(fields: [registerTransactionId], references: [id])
+  business    Business            @relation(fields: [businessId], references: [id])
+
+  @@map("register_lines")
+}
+
+model BankMatch {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId           String   @db.Uuid @map("business_id")
+  bankTransactionId    String   @db.Uuid @map("bank_transaction_id")
+  registerTransactionId String  @db.Uuid @map("register_transaction_id")
+  matchType            MatchType @map("match_type")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("bank_matches")
+}
+
+model ReconciliationSession {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId      String   @db.Uuid @map("business_id")
+  bankAccountId   String   @db.Uuid @map("bank_account_id")
+  statementStart  DateTime @db.Date @map("statement_start")
+  statementEnd    DateTime @db.Date @map("statement_end")
+  beginningBalance Decimal @db.Decimal(14, 2) @map("beginning_balance")
+  endingBalance    Decimal @db.Decimal(14, 2) @map("ending_balance")
+  status          ReconciliationStatus
+  createdAt       DateTime @default(now()) @map("created_at")
+  closedAt        DateTime? @map("closed_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+  items    ReconciliationItem[]
+
+  @@map("reconciliation_sessions")
+}
+
+model ReconciliationItem {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId            String   @db.Uuid @map("business_id")
+  reconciliationSessionId String @db.Uuid @map("reconciliation_session_id")
+  registerTransactionId String   @db.Uuid @map("register_transaction_id")
+  clearedAmount         Decimal  @db.Decimal(14, 2) @map("cleared_amount")
+  clearedDate           DateTime @db.Date @map("cleared_date")
+
+  business Business @relation(fields: [businessId], references: [id])
+  session  ReconciliationSession @relation(fields: [reconciliationSessionId], references: [id])
+
+  @@map("reconciliation_items")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @db.Uuid @map("business_id")
+  userId     String?  @db.Uuid @map("user_id")
+  entityType String   @map("entity_type")
+  entityId   String   @db.Uuid @map("entity_id")
+  action     AuditAction
+  diffJson   Json     @map("diff_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@map("audit_log")
+}
