@@ -63,16 +63,6 @@ audit_action = sa.Enum("CREATE", "UPDATE", "DELETE", name="audit_action", create
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
-    account_type.create(op.get_bind(), checkfirst=True)
-    pdf_parse_status.create(op.get_bind(), checkfirst=True)
-    bank_txn_direction.create(op.get_bind(), checkfirst=True)
-    bank_txn_status.create(op.get_bind(), checkfirst=True)
-    rule_match_type.create(op.get_bind(), checkfirst=True)
-    register_source.create(op.get_bind(), checkfirst=True)
-    match_type.create(op.get_bind(), checkfirst=True)
-    reconciliation_status.create(op.get_bind(), checkfirst=True)
-    audit_action.create(op.get_bind(), checkfirst=True)
-
     op.create_table(
         "workspaces",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -303,12 +293,4 @@ def downgrade() -> None:
     op.drop_table("users")
     op.drop_table("workspaces")
 
-    audit_action.drop(op.get_bind(), checkfirst=True)
-    reconciliation_status.drop(op.get_bind(), checkfirst=True)
-    match_type.drop(op.get_bind(), checkfirst=True)
-    register_source.drop(op.get_bind(), checkfirst=True)
-    rule_match_type.drop(op.get_bind(), checkfirst=True)
-    bank_txn_status.drop(op.get_bind(), checkfirst=True)
-    bank_txn_direction.drop(op.get_bind(), checkfirst=True)
-    pdf_parse_status.drop(op.get_bind(), checkfirst=True)
-    account_type.drop(op.get_bind(), checkfirst=True)
+    # Enums are managed by PostgreSQL and may exist across schema resets.
