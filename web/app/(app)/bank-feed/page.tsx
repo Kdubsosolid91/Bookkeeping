@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import Sidebar from "../../components/Sidebar";
 import BusinessSwitcher from "../../components/BusinessSwitcher";
+import PdfUpload from "../../components/PdfUpload";
 import { getBankFeed } from "../../lib/api";
 
 const DEFAULT_BUSINESS_ID = "11111111-1111-1111-1111-111111111111";
@@ -28,6 +29,8 @@ export default function BankFeedPage() {
           </div>
           <BusinessSwitcher />
         </header>
+
+        <PdfUpload />
 
         <div className="panel">
           <table className="table">
