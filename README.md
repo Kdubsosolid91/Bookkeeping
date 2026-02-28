@@ -50,3 +50,11 @@ This seeds:
 - Workspace `00000000-0000-0000-0000-000000000000`
 - Business `11111111-1111-1111-1111-111111111111`
 - Bank account `22222222-2222-2222-2222-222222222222`
+
+## Bank Auto-Detection (PDF Upload)
+
+The upload flow can auto-detect the bank name from the statement text and
+create a matching bank account on first use.
+
+Endpoint:
+- `POST /api/businesses/{business_id}/uploads`

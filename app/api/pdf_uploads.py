@@ -5,9 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.db.deps import get_db
-from app.models.core import BankTransaction, BankTxnDirection, BankTxnStatus, PdfParseStatus, PdfUpload
+from app.models.core import BankAccount, BankTransaction, BankTxnDirection, BankTxnStatus, PdfParseStatus, PdfUpload
 from app.repositories.pdf_uploads import PdfUploadRepository
 from app.schemas.pdf_uploads import PdfUploadOut, PdfUploadStatusOut
 from app.settings import settings
@@ -18,6 +19,7 @@ from app.services.pdf_parser import (
     parse_transactions_from_pdf,
     extract_text_with_ocr,
 )
+from app.services.institution_detector import detect_institution_name
 
 router = APIRouter(tags=["pdf-uploads"])
 
@@ -27,6 +29,27 @@ def get_storage_dir() -> Path:
     uploads = base / "uploads"
     uploads.mkdir(parents=True, exist_ok=True)
     return uploads
+
+
+def _get_or_create_bank_account(db: Session, business_id: UUID, name: str) -> BankAccount:
+    stmt = select(BankAccount).where(
+        BankAccount.business_id == business_id,
+        BankAccount.name == name,
+    )
+    existing = db.scalars(stmt).first()
+    if existing:
+        return existing
+
+    bank_account = BankAccount(
+        business_id=business_id,
+        name=name,
+        institution=name,
+        is_active=True,
+    )
+    db.add(bank_account)
+    db.commit()
+    db.refresh(bank_account)
+    return bank_account
 
 
 @router.post("/api/bank-accounts/{bank_account_id}/uploads", response_model=PdfUploadOut, status_code=201)
@@ -49,6 +72,36 @@ def upload_pdf_statement(
     upload = PdfUpload(
         business_id=business_id,
         bank_account_id=bank_account_id,
+        filename=file.filename,
+        storage_path=str(target_path),
+        parse_status=PdfParseStatus.PENDING,
+    )
+    return repo.create(upload)
+
+
+@router.post("/api/businesses/{business_id}/uploads", response_model=PdfUploadOut, status_code=201)
+def upload_pdf_statement_detect_bank(
+    business_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> PdfUploadOut:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    storage_dir = get_storage_dir()
+    target_path = storage_dir / file.filename
+
+    with target_path.open("wb") as buffer:
+        buffer.write(file.file.read())
+
+    text = extract_text_with_ocr(target_path)
+    detected_name = detect_institution_name(text) or "Unknown Bank"
+    bank_account = _get_or_create_bank_account(db, business_id, detected_name)
+
+    repo = PdfUploadRepository(db)
+    upload = PdfUpload(
+        business_id=business_id,
+        bank_account_id=bank_account.id,
         filename=file.filename,
         storage_path=str(target_path),
         parse_status=PdfParseStatus.PENDING,

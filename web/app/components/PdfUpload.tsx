@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { getBankAccounts, uploadPdf, parseUpload } from "../lib/api";
+import { getBankAccounts, uploadPdf, parseUpload, uploadPdfDetect } from "../lib/api";
 
 const DEFAULT_BUSINESS_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -12,6 +12,7 @@ export default function PdfUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [autoDetect, setAutoDetect] = useState(true);
 
   useEffect(() => {
     getBankAccounts(DEFAULT_BUSINESS_ID)
@@ -23,15 +24,22 @@ export default function PdfUpload() {
   }, []);
 
   async function handleUpload() {
-    if (!bankAccountId || !file) {
-      setStatus("Select a bank account and a PDF.");
+    if (!file) {
+      setStatus("Select a PDF.");
+      return;
+    }
+
+    if (!autoDetect && !bankAccountId) {
+      setStatus("Select a bank account or enable auto-detect.");
       return;
     }
 
     setLoading(true);
     setStatus("");
     try {
-      const upload = await uploadPdf(bankAccountId, DEFAULT_BUSINESS_ID, file);
+      const upload = autoDetect
+        ? await uploadPdfDetect(DEFAULT_BUSINESS_ID, file)
+        : await uploadPdf(bankAccountId, DEFAULT_BUSINESS_ID, file);
       setStatus("Uploaded. Parsing...");
       await parseUpload(upload.id);
       setStatus("Parsed successfully. Refresh Bank Feed.");
@@ -47,18 +55,32 @@ export default function PdfUpload() {
       <div className="card-title">Upload Statement PDF</div>
       <p className="muted">Upload bank statements to populate the bank feed.</p>
       <div className="grid" style={{ gap: "10px", maxWidth: "420px" }}>
-        <select
-          className="input"
-          value={bankAccountId}
-          onChange={(event) => setBankAccountId(event.target.value)}
-        >
-          <option value="">Select bank account</option>
-          {bankAccounts.map((acct) => (
-            <option key={acct.id} value={acct.id}>
-              {acct.name}
-            </option>
-          ))}
-        </select>
+        <label className="grid" style={{ gap: "6px" }}>
+          <span className="muted">Bank selection</span>
+          <div className="grid" style={{ gap: "8px" }}>
+            <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={autoDetect}
+                onChange={(event) => setAutoDetect(event.target.checked)}
+              />
+              <span>Auto-detect from PDF</span>
+            </label>
+            <select
+              className="input"
+              value={bankAccountId}
+              onChange={(event) => setBankAccountId(event.target.value)}
+              disabled={autoDetect}
+            >
+              <option value="">Select bank account</option>
+              {bankAccounts.map((acct) => (
+                <option key={acct.id} value={acct.id}>
+                  {acct.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </label>
         <input
           className="input"
           type="file"

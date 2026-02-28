@@ -48,6 +48,25 @@ export async function uploadPdf(
   return res.json();
 }
 
+export async function uploadPdfDetect(
+  businessId: string,
+  file: File
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/businesses/${businessId}/uploads`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export async function parseUpload(uploadId: string): Promise<void> {
   await fetchJSON(`/api/uploads/${uploadId}/parse`, { method: "POST" });
 }
